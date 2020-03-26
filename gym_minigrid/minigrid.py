@@ -11,51 +11,42 @@ TILE_PIXELS = 32
 
 # Map of color names to RGB values
 COLORS = {
-    'red'   : np.array([255, 0, 0]),
-    'green' : np.array([0, 255, 0]),
-    'blue'  : np.array([0, 0, 255]),
-    'purple': np.array([112, 39, 195]),
-    'yellow': np.array([255, 255, 0]),
-    'grey'  : np.array([100, 100, 100])
+    "red": np.array([255, 0, 0]),
+    "green": np.array([0, 255, 0]),
+    "blue": np.array([0, 0, 255]),
+    "purple": np.array([112, 39, 195]),
+    "yellow": np.array([255, 255, 0]),
+    "grey": np.array([100, 100, 100]),
 }
 
 COLOR_NAMES = sorted(list(COLORS.keys()))
 
 # Used to map colors to integers
-COLOR_TO_IDX = {
-    'red'   : 0,
-    'green' : 1,
-    'blue'  : 2,
-    'purple': 3,
-    'yellow': 4,
-    'grey'  : 5
-}
+COLOR_TO_IDX = {"red": 0, "green": 1, "blue": 2, "purple": 3, "yellow": 4, "grey": 5}
 
 IDX_TO_COLOR = dict(zip(COLOR_TO_IDX.values(), COLOR_TO_IDX.keys()))
 
 # Map of object type to integers
 OBJECT_TO_IDX = {
-    'unseen'        : 0,
-    'empty'         : 1,
-    'wall'          : 2,
-    'floor'         : 3,
-    'door'          : 4,
-    'key'           : 5,
-    'ball'          : 6,
-    'box'           : 7,
-    'goal'          : 8,
-    'lava'          : 9,
-    'agent'         : 10,
+    "unseen": 0,
+    "empty": 1,
+    "wall": 2,
+    "floor": 3,
+    "door": 4,
+    "key": 5,
+    "ball": 6,
+    "box": 7,
+    "goal": 8,
+    "lava": 9,
+    "agent": 10,
+    "reward": 11,
+    "sl_door": 12,
 }
 
 IDX_TO_OBJECT = dict(zip(OBJECT_TO_IDX.values(), OBJECT_TO_IDX.keys()))
 
 # Map of state names to integers
-STATE_TO_IDX = {
-    'open'  : 0,
-    'closed': 1,
-    'locked': 2,
-}
+STATE_TO_IDX = {"open": 0, "closed": 1, "locked": 2}
 
 # Map of agent direction indices to vectors
 DIR_TO_VEC = [
@@ -68,6 +59,7 @@ DIR_TO_VEC = [
     # Up (negative Y)
     np.array((0, -1)),
 ]
+
 
 class WorldObj:
     """
@@ -118,28 +110,32 @@ class WorldObj:
         obj_type = IDX_TO_OBJECT[type_idx]
         color = IDX_TO_COLOR[color_idx]
 
-        if obj_type == 'empty' or obj_type == 'unseen':
+        if obj_type == "empty" or obj_type == "unseen":
             return None
 
         # State, 0: open, 1: closed, 2: locked
         is_open = state == 0
         is_locked = state == 2
 
-        if obj_type == 'wall':
+        if obj_type == "wall":
             v = Wall(color)
-        elif obj_type == 'floor':
+        elif obj_type == "floor":
             v = Floor(color)
-        elif obj_type == 'ball':
+        elif obj_type == "ball":
             v = Ball(color)
-        elif obj_type == 'key':
+        elif obj_type == "key":
             v = Key(color)
-        elif obj_type == 'box':
+        elif obj_type == "box":
             v = Box(color)
-        elif obj_type == 'door':
+        elif obj_type == "door":
             v = Door(color, is_open, is_locked)
-        elif obj_type == 'goal':
+        elif obj_type == "sl_door":
+            v = SelfLockingDoor(color)
+        elif obj_type == "goal":
             v = Goal()
-        elif obj_type == 'lava':
+        elif obj_type == "reward":
+            v = Reward()
+        elif obj_type == "lava":
             v = Lava()
         else:
             assert False, "unknown object type in decode '%s'" % objType
@@ -150,9 +146,10 @@ class WorldObj:
         """Draw this object with the given renderer"""
         raise NotImplementedError
 
+
 class Goal(WorldObj):
     def __init__(self):
-        super().__init__('goal', 'green')
+        super().__init__("goal", "green")
 
     def can_overlap(self):
         return True
@@ -160,13 +157,26 @@ class Goal(WorldObj):
     def render(self, img):
         fill_coords(img, point_in_rect(0, 1, 0, 1), COLORS[self.color])
 
+
+class Reward(WorldObj):
+    def __init__(self, color="blue", value=0):
+        self.value = value
+        super().__init__("reward", color)
+
+    def can_overlap(self):
+        return True
+
+    def render(self, img):
+        fill_coords(img, point_in_rect(0, 1, 0, 1), COLORS[self.color])
+
+
 class Floor(WorldObj):
     """
     Colored floor tile the agent can walk over
     """
 
-    def __init__(self, color='blue'):
-        super().__init__('floor', color)
+    def __init__(self, color="blue"):
+        super().__init__("floor", color)
 
     def can_overlap(self):
         return True
@@ -175,17 +185,15 @@ class Floor(WorldObj):
         # Give the floor a pale color
         c = COLORS[self.color]
         r.setLineColor(100, 100, 100, 0)
-        r.setColor(*c/2)
-        r.drawPolygon([
-            (1          , TILE_PIXELS),
-            (TILE_PIXELS, TILE_PIXELS),
-            (TILE_PIXELS,           1),
-            (1          ,           1)
-        ])
+        r.setColor(*c / 2)
+        r.drawPolygon(
+            [(1, TILE_PIXELS), (TILE_PIXELS, TILE_PIXELS), (TILE_PIXELS, 1), (1, 1)]
+        )
+
 
 class Lava(WorldObj):
     def __init__(self):
-        super().__init__('lava', 'red')
+        super().__init__("lava", "red")
 
     def can_overlap(self):
         return True
@@ -200,14 +208,15 @@ class Lava(WorldObj):
         for i in range(3):
             ylo = 0.3 + 0.2 * i
             yhi = 0.4 + 0.2 * i
-            fill_coords(img, point_in_line(0.1, ylo, 0.3, yhi, r=0.03), (0,0,0))
-            fill_coords(img, point_in_line(0.3, yhi, 0.5, ylo, r=0.03), (0,0,0))
-            fill_coords(img, point_in_line(0.5, ylo, 0.7, yhi, r=0.03), (0,0,0))
-            fill_coords(img, point_in_line(0.7, yhi, 0.9, ylo, r=0.03), (0,0,0))
+            fill_coords(img, point_in_line(0.1, ylo, 0.3, yhi, r=0.03), (0, 0, 0))
+            fill_coords(img, point_in_line(0.3, yhi, 0.5, ylo, r=0.03), (0, 0, 0))
+            fill_coords(img, point_in_line(0.5, ylo, 0.7, yhi, r=0.03), (0, 0, 0))
+            fill_coords(img, point_in_line(0.7, yhi, 0.9, ylo, r=0.03), (0, 0, 0))
+
 
 class Wall(WorldObj):
-    def __init__(self, color='grey'):
-        super().__init__('wall', color)
+    def __init__(self, color="grey"):
+        super().__init__("wall", color)
 
     def see_behind(self):
         return False
@@ -215,9 +224,10 @@ class Wall(WorldObj):
     def render(self, img):
         fill_coords(img, point_in_rect(0, 1, 0, 1), COLORS[self.color])
 
+
 class Door(WorldObj):
-    def __init__(self, color, is_open=False, is_locked=False):
-        super().__init__('door', color)
+    def __init__(self, color, is_open=False, is_locked=False, type="door"):
+        super().__init__(type, color)
         self.is_open = is_open
         self.is_locked = is_locked
 
@@ -258,7 +268,7 @@ class Door(WorldObj):
 
         if self.is_open:
             fill_coords(img, point_in_rect(0.88, 1.00, 0.00, 1.00), c)
-            fill_coords(img, point_in_rect(0.92, 0.96, 0.04, 0.96), (0,0,0))
+            fill_coords(img, point_in_rect(0.92, 0.96, 0.04, 0.96), (0, 0, 0))
             return
 
         # Door frame and door
@@ -270,16 +280,29 @@ class Door(WorldObj):
             fill_coords(img, point_in_rect(0.52, 0.75, 0.50, 0.56), c)
         else:
             fill_coords(img, point_in_rect(0.00, 1.00, 0.00, 1.00), c)
-            fill_coords(img, point_in_rect(0.04, 0.96, 0.04, 0.96), (0,0,0))
+            fill_coords(img, point_in_rect(0.04, 0.96, 0.04, 0.96), (0, 0, 0))
             fill_coords(img, point_in_rect(0.08, 0.92, 0.08, 0.92), c)
-            fill_coords(img, point_in_rect(0.12, 0.88, 0.12, 0.88), (0,0,0))
+            fill_coords(img, point_in_rect(0.12, 0.88, 0.12, 0.88), (0, 0, 0))
 
             # Draw door handle
             fill_coords(img, point_in_circle(cx=0.75, cy=0.50, r=0.08), c)
 
+
+class SelfLockingDoor(Door):
+    def __init__(self, color):
+        super().__init__(color, False, False, "sl_door")
+
+    def toggle(self, env, pos):
+        if self.is_locked:
+            return False
+        else:
+            self.is_open = True
+            return True
+
+
 class Key(WorldObj):
-    def __init__(self, color='blue'):
-        super(Key, self).__init__('key', color)
+    def __init__(self, color="blue"):
+        super(Key, self).__init__("key", color)
 
     def can_pickup(self):
         return True
@@ -296,11 +319,12 @@ class Key(WorldObj):
 
         # Ring
         fill_coords(img, point_in_circle(cx=0.56, cy=0.28, r=0.190), c)
-        fill_coords(img, point_in_circle(cx=0.56, cy=0.28, r=0.064), (0,0,0))
+        fill_coords(img, point_in_circle(cx=0.56, cy=0.28, r=0.064), (0, 0, 0))
+
 
 class Ball(WorldObj):
-    def __init__(self, color='blue'):
-        super(Ball, self).__init__('ball', color)
+    def __init__(self, color="blue"):
+        super(Ball, self).__init__("ball", color)
 
     def can_pickup(self):
         return True
@@ -308,9 +332,10 @@ class Ball(WorldObj):
     def render(self, img):
         fill_coords(img, point_in_circle(0.5, 0.5, 0.31), COLORS[self.color])
 
+
 class Box(WorldObj):
     def __init__(self, color, contains=None):
-        super(Box, self).__init__('box', color)
+        super(Box, self).__init__("box", color)
         self.contains = contains
 
     def can_pickup(self):
@@ -321,7 +346,7 @@ class Box(WorldObj):
 
         # Outline
         fill_coords(img, point_in_rect(0.12, 0.88, 0.12, 0.88), c)
-        fill_coords(img, point_in_rect(0.18, 0.82, 0.18, 0.82), (0,0,0))
+        fill_coords(img, point_in_rect(0.18, 0.82, 0.18, 0.82), (0, 0, 0))
 
         # Horizontal slit
         fill_coords(img, point_in_rect(0.16, 0.84, 0.47, 0.53), c)
@@ -330,6 +355,7 @@ class Box(WorldObj):
         # Replace the box by its contents
         env.grid.set(*pos, self.contains)
         return True
+
 
 class Grid:
     """
@@ -364,7 +390,7 @@ class Grid:
         return False
 
     def __eq__(self, other):
-        grid1  = self.encode()
+        grid1 = self.encode()
         grid2 = other.encode()
         return np.array_equal(grid2, grid1)
 
@@ -373,6 +399,7 @@ class Grid:
 
     def copy(self):
         from copy import deepcopy
+
         return deepcopy(self)
 
     def set(self, i, j, v):
@@ -399,9 +426,9 @@ class Grid:
 
     def wall_rect(self, x, y, w, h):
         self.horz_wall(x, y, w)
-        self.horz_wall(x, y+h-1, w)
+        self.horz_wall(x, y + h - 1, w)
         self.vert_wall(x, y, h)
-        self.vert_wall(x+w-1, y, h)
+        self.vert_wall(x + w - 1, y, h)
 
     def rotate_left(self):
         """
@@ -429,8 +456,7 @@ class Grid:
                 x = topX + i
                 y = topY + j
 
-                if x >= 0 and x < self.width and \
-                   y >= 0 and y < self.height:
+                if x >= 0 and x < self.width and y >= 0 and y < self.height:
                     v = self.get(x, y)
                 else:
                     v = Wall()
@@ -441,12 +467,7 @@ class Grid:
 
     @classmethod
     def render_tile(
-        cls,
-        obj,
-        agent_dir=None,
-        highlight=False,
-        tile_size=TILE_PIXELS,
-        subdivs=3
+        cls, obj, agent_dir=None, highlight=False, tile_size=TILE_PIXELS, subdivs=3
     ):
         """
         Render a tile and cache the result
@@ -459,7 +480,9 @@ class Grid:
         if key in cls.tile_cache:
             return cls.tile_cache[key]
 
-        img = np.zeros(shape=(tile_size * subdivs, tile_size * subdivs, 3), dtype=np.uint8)
+        img = np.zeros(
+            shape=(tile_size * subdivs, tile_size * subdivs, 3), dtype=np.uint8
+        )
 
         # Draw the grid lines (top and left edges)
         fill_coords(img, point_in_rect(0, 0.031, 0, 1), (100, 100, 100))
@@ -470,14 +493,10 @@ class Grid:
 
         # Overlay the agent on top
         if agent_dir is not None:
-            tri_fn = point_in_triangle(
-                (0.12, 0.19),
-                (0.87, 0.50),
-                (0.12, 0.81),
-            )
+            tri_fn = point_in_triangle((0.12, 0.19), (0.87, 0.50), (0.12, 0.81))
 
             # Rotate the agent based on its direction
-            tri_fn = rotate_fn(tri_fn, cx=0.5, cy=0.5, theta=0.5*math.pi*agent_dir)
+            tri_fn = rotate_fn(tri_fn, cx=0.5, cy=0.5, theta=0.5 * math.pi * agent_dir)
             fill_coords(img, tri_fn, (255, 0, 0))
 
         # Highlight the cell if needed
@@ -492,13 +511,7 @@ class Grid:
 
         return img
 
-    def render(
-        self,
-        tile_size,
-        agent_pos=None,
-        agent_dir=None,
-        highlight_mask=None
-    ):
+    def render(self, tile_size, agent_pos=None, agent_dir=None, highlight_mask=None):
         """
         Render this grid at a given scale
         :param r: target renderer object
@@ -524,13 +537,13 @@ class Grid:
                     cell,
                     agent_dir=agent_dir if agent_here else None,
                     highlight=highlight_mask[i, j],
-                    tile_size=tile_size
+                    tile_size=tile_size,
                 )
 
                 ymin = j * tile_size
-                ymax = (j+1) * tile_size
+                ymax = (j + 1) * tile_size
                 xmin = i * tile_size
-                xmax = (i+1) * tile_size
+                xmax = (i + 1) * tile_size
                 img[ymin:ymax, xmin:xmax, :] = tile_img
 
         return img
@@ -543,7 +556,7 @@ class Grid:
         if vis_mask is None:
             vis_mask = np.ones((self.width, self.height), dtype=bool)
 
-        array = np.zeros((self.width, self.height, 3), dtype='uint8')
+        array = np.zeros((self.width, self.height, 3), dtype="uint8")
 
         for i in range(self.width):
             for j in range(self.height):
@@ -551,7 +564,7 @@ class Grid:
                     v = self.get(i, j)
 
                     if v is None:
-                        array[i, j, 0] = OBJECT_TO_IDX['empty']
+                        array[i, j, 0] = OBJECT_TO_IDX["empty"]
                         array[i, j, 1] = 0
                         array[i, j, 2] = 0
 
@@ -577,7 +590,7 @@ class Grid:
                 type_idx, color_idx, state = array[i, j]
                 v = WorldObj.decode(type_idx, color_idx, state)
                 grid.set(i, j, v)
-                vis_mask[i, j] = (type_idx != OBJECT_TO_IDX['unseen'])
+                vis_mask[i, j] = type_idx != OBJECT_TO_IDX["unseen"]
 
         return grid, vis_mask
 
@@ -587,7 +600,7 @@ class Grid:
         mask[agent_pos[0], agent_pos[1]] = True
 
         for j in reversed(range(0, grid.height)):
-            for i in range(0, grid.width-1):
+            for i in range(0, grid.width - 1):
                 if not mask[i, j]:
                     continue
 
@@ -595,10 +608,10 @@ class Grid:
                 if cell and not cell.see_behind():
                     continue
 
-                mask[i+1, j] = True
+                mask[i + 1, j] = True
                 if j > 0:
-                    mask[i+1, j-1] = True
-                    mask[i, j-1] = True
+                    mask[i + 1, j - 1] = True
+                    mask[i, j - 1] = True
 
             for i in reversed(range(1, grid.width)):
                 if not mask[i, j]:
@@ -608,10 +621,10 @@ class Grid:
                 if cell and not cell.see_behind():
                     continue
 
-                mask[i-1, j] = True
+                mask[i - 1, j] = True
                 if j > 0:
-                    mask[i-1, j-1] = True
-                    mask[i, j-1] = True
+                    mask[i - 1, j - 1] = True
+                    mask[i, j - 1] = True
 
         for j in range(0, grid.height):
             for i in range(0, grid.width):
@@ -620,15 +633,13 @@ class Grid:
 
         return mask
 
+
 class MiniGridEnv(gym.Env):
     """
     2D grid world game environment
     """
 
-    metadata = {
-        'render.modes': ['human', 'rgb_array'],
-        'video.frames_per_second' : 10
-    }
+    metadata = {"render.modes": ["human", "rgb_array"], "video.frames_per_second": 10}
 
     # Enumeration of possible actions
     class Actions(IntEnum):
@@ -655,7 +666,7 @@ class MiniGridEnv(gym.Env):
         max_steps=100,
         see_through_walls=False,
         seed=1337,
-        agent_view_size=7
+        agent_view_size=7,
     ):
         # Can't set both grid_size and width/height
         if grid_size:
@@ -678,11 +689,9 @@ class MiniGridEnv(gym.Env):
             low=0,
             high=255,
             shape=(self.agent_view_size, self.agent_view_size, 3),
-            dtype='uint8'
+            dtype="uint8",
         )
-        self.observation_space = spaces.Dict({
-            'image': self.observation_space
-        })
+        self.observation_space = spaces.Dict({"image": self.observation_space})
 
         # Range of possible rewards
         self.reward_range = (0, 1)
@@ -699,6 +708,7 @@ class MiniGridEnv(gym.Env):
         # Current position and direction of the agent
         self.agent_pos = None
         self.agent_dir = None
+        self.collected_reward = False
 
         # Initialize the RNG
         self.seed(seed=seed)
@@ -752,28 +762,25 @@ class MiniGridEnv(gym.Env):
 
         # Map of object types to short string
         OBJECT_TO_STR = {
-            'wall'          : 'W',
-            'floor'         : 'F',
-            'door'          : 'D',
-            'key'           : 'K',
-            'ball'          : 'A',
-            'box'           : 'B',
-            'goal'          : 'G',
-            'lava'          : 'V',
+            "wall": "W",
+            "floor": "F",
+            "door": "D",
+            "sl_door": "d",
+            "key": "K",
+            "ball": "A",
+            "box": "B",
+            "goal": "G",
+            "reward": "R",
+            "lava": "V",
         }
 
         # Short string for opened door
-        OPENDED_DOOR_IDS = '_'
+        OPENDED_DOOR_IDS = "_"
 
         # Map agent's direction to short string
-        AGENT_DIR_TO_STR = {
-            0: '>',
-            1: 'V',
-            2: '<',
-            3: '^'
-        }
+        AGENT_DIR_TO_STR = {0: ">", 1: "V", 2: "<", 3: "^"}
 
-        str = ''
+        str = ""
 
         for j in range(self.grid.height):
 
@@ -785,22 +792,22 @@ class MiniGridEnv(gym.Env):
                 c = self.grid.get(i, j)
 
                 if c == None:
-                    str += '  '
+                    str += "  "
                     continue
 
-                if c.type == 'door':
+                if c.type == "door":
                     if c.is_open:
-                        str += '__'
+                        str += "__"
                     elif c.is_locked:
-                        str += 'L' + c.color[0].upper()
+                        str += "L" + c.color[0].upper()
                     else:
-                        str += 'D' + c.color[0].upper()
+                        str += "D" + c.color[0].upper()
                     continue
 
                 str += OBJECT_TO_STR[c.type] + c.color[0].upper()
 
             if j < self.grid.height - 1:
-                str += '\n'
+                str += "\n"
 
         return str
 
@@ -833,7 +840,7 @@ class MiniGridEnv(gym.Env):
         Generate random boolean value
         """
 
-        return (self.np_random.randint(0, 2) == 0)
+        return self.np_random.randint(0, 2) == 0
 
     def _rand_elem(self, iterable):
         """
@@ -875,16 +882,10 @@ class MiniGridEnv(gym.Env):
 
         return (
             self.np_random.randint(xLow, xHigh),
-            self.np_random.randint(yLow, yHigh)
+            self.np_random.randint(yLow, yHigh),
         )
 
-    def place_obj(self,
-        obj,
-        top=None,
-        size=None,
-        reject_fn=None,
-        max_tries=math.inf
-    ):
+    def place_obj(self, obj, top=None, size=None, reject_fn=None, max_tries=math.inf):
         """
         Place an object at an empty position in the grid
 
@@ -907,14 +908,16 @@ class MiniGridEnv(gym.Env):
             # This is to handle with rare cases where rejection sampling
             # gets stuck in an infinite loop
             if num_tries > max_tries:
-                raise RecursionError('rejection sampling failed in place_obj')
+                raise RecursionError("rejection sampling failed in place_obj")
 
             num_tries += 1
 
-            pos = np.array((
-                self._rand_int(top[0], min(top[0] + size[0], self.grid.width)),
-                self._rand_int(top[1], min(top[1] + size[1], self.grid.height))
-            ))
+            pos = np.array(
+                (
+                    self._rand_int(top[0], min(top[0] + size[0], self.grid.width)),
+                    self._rand_int(top[1], min(top[1] + size[1], self.grid.height)),
+                )
+            )
 
             # Don't place the object on top of another object
             if self.grid.get(*pos) != None:
@@ -947,13 +950,7 @@ class MiniGridEnv(gym.Env):
         obj.init_pos = (i, j)
         obj.cur_pos = (i, j)
 
-    def place_agent(
-        self,
-        top=None,
-        size=None,
-        rand_dir=True,
-        max_tries=math.inf
-    ):
+    def place_agent(self, top=None, size=None, rand_dir=True, max_tries=math.inf):
         """
         Set the agent's starting point at an empty position in the grid
         """
@@ -1008,16 +1005,16 @@ class MiniGridEnv(gym.Env):
         # Compute the absolute coordinates of the top-left view corner
         sz = self.agent_view_size
         hs = self.agent_view_size // 2
-        tx = ax + (dx * (sz-1)) - (rx * hs)
-        ty = ay + (dy * (sz-1)) - (ry * hs)
+        tx = ax + (dx * (sz - 1)) - (rx * hs)
+        ty = ay + (dy * (sz - 1)) - (ry * hs)
 
         lx = i - tx
         ly = j - ty
 
         # Project the coordinates of the object relative to the top-left
         # corner onto the agent's own coordinate system
-        vx = (rx*lx + ry*ly)
-        vy = -(dx*lx + dy*ly)
+        vx = rx * lx + ry * ly
+        vy = -(dx * lx + dy * ly)
 
         return vx, vy
 
@@ -1081,7 +1078,7 @@ class MiniGridEnv(gym.Env):
         vx, vy = coordinates
 
         obs = self.gen_obs()
-        obs_grid, _ = Grid.decode(obs['image'])
+        obs_grid, _ = Grid.decode(obs["image"])
         obs_cell = obs_grid.get(vx, vy)
         world_cell = self.grid.get(x, y)
 
@@ -1097,6 +1094,8 @@ class MiniGridEnv(gym.Env):
         fwd_pos = self.front_pos
 
         # Get the contents of the cell in front of the agent
+        agent_cell = self.grid.get(*self.agent_pos)
+        old_agent_pos = self.agent_pos
         fwd_cell = self.grid.get(*fwd_pos)
 
         # Rotate left
@@ -1111,13 +1110,19 @@ class MiniGridEnv(gym.Env):
 
         # Move forward
         elif action == self.actions.forward:
-            if fwd_cell == None or fwd_cell.can_overlap():
+            if fwd_cell is None or fwd_cell.can_overlap():
                 self.agent_pos = fwd_pos
-            if fwd_cell != None and fwd_cell.type == 'goal':
+            if fwd_cell is not None and fwd_cell.type == "goal":
                 done = True
                 reward = self._reward()
-            if fwd_cell != None and fwd_cell.type == 'lava':
+            if fwd_cell is not None and fwd_cell.type == "lava":
                 done = True
+            if fwd_cell is not None and fwd_cell.type == "reward":
+                reward += fwd_cell.value
+                self.grid.set(*fwd_pos, None)
+                self.collected_reward = True
+            else:
+                self.collected_reward = False
 
         # Pick up an object
         elif action == self.actions.pickup:
@@ -1146,6 +1151,15 @@ class MiniGridEnv(gym.Env):
         else:
             assert False, "unknown action"
 
+        # lock self locking doors after walking through them
+        if (
+            agent_cell is not None
+            and agent_cell.type == "sl_door"
+            and list(self.agent_pos) != list(old_agent_pos)
+        ):
+            agent_cell.is_open = False
+            agent_cell.is_locked = True
+
         if self.step_count >= self.max_steps:
             done = True
 
@@ -1170,7 +1184,9 @@ class MiniGridEnv(gym.Env):
         # Process occluders and visibility
         # Note that this incurs some performance cost
         if not self.see_through_walls:
-            vis_mask = grid.process_vis(agent_pos=(self.agent_view_size // 2 , self.agent_view_size - 1))
+            vis_mask = grid.process_vis(
+                agent_pos=(self.agent_view_size // 2, self.agent_view_size - 1)
+            )
         else:
             vis_mask = np.ones(shape=(grid.width, grid.height), dtype=np.bool)
 
@@ -1195,21 +1211,19 @@ class MiniGridEnv(gym.Env):
         # Encode the partially observable view into a numpy array
         image = grid.encode(vis_mask)
 
-        assert hasattr(self, 'mission'), "environments must define a textual mission string"
+        assert hasattr(
+            self, "mission"
+        ), "environments must define a textual mission string"
 
         # Observations are dictionaries containing:
         # - an image (partially observable view of the environment)
         # - the agent's direction/orientation (acting as a compass)
         # - a textual mission string (instructions for the agent)
-        obs = {
-            'image': image,
-            'direction': self.agent_dir,
-            'mission': self.mission
-        }
+        obs = {"image": image, "direction": self.agent_dir, "mission": self.mission}
 
         return obs
 
-    def get_obs_render(self, obs, tile_size=TILE_PIXELS//2):
+    def get_obs_render(self, obs, tile_size=TILE_PIXELS // 2):
         """
         Render an agent observation for visualization
         """
@@ -1221,12 +1235,12 @@ class MiniGridEnv(gym.Env):
             tile_size,
             agent_pos=(self.agent_view_size // 2, self.agent_view_size - 1),
             agent_dir=3,
-            highlight_mask=vis_mask
+            highlight_mask=vis_mask,
         )
 
         return img
 
-    def render(self, mode='human', close=False, highlight=True, tile_size=TILE_PIXELS):
+    def render(self, mode="human", close=False, highlight=True, tile_size=TILE_PIXELS):
         """
         Render the whole-grid human view
         """
@@ -1236,9 +1250,10 @@ class MiniGridEnv(gym.Env):
                 self.window.close()
             return
 
-        if mode == 'human' and not self.window:
+        if mode == "human" and not self.window:
             import gym_minigrid.window
-            self.window = gym_minigrid.window.Window('gym_minigrid')
+
+            self.window = gym_minigrid.window.Window("gym_minigrid")
             self.window.show(block=False)
 
         # Compute which cells are visible to the agent
@@ -1248,7 +1263,11 @@ class MiniGridEnv(gym.Env):
         # of the agent's view area
         f_vec = self.dir_vec
         r_vec = self.right_vec
-        top_left = self.agent_pos + f_vec * (self.agent_view_size-1) - r_vec * (self.agent_view_size // 2)
+        top_left = (
+            self.agent_pos
+            + f_vec * (self.agent_view_size - 1)
+            - r_vec * (self.agent_view_size // 2)
+        )
 
         # Mask of which cells to highlight
         highlight_mask = np.zeros(shape=(self.width, self.height), dtype=np.bool)
@@ -1276,10 +1295,10 @@ class MiniGridEnv(gym.Env):
             tile_size,
             self.agent_pos,
             self.agent_dir,
-            highlight_mask=highlight_mask if highlight else None
+            highlight_mask=highlight_mask if highlight else None,
         )
 
-        if mode == 'human':
+        if mode == "human":
             self.window.show_img(img)
             self.window.set_caption(self.mission)
 
